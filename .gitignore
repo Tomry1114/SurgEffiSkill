@@ -1,0 +1,24 @@
+# 数据与结果一律不入库
+*.npz
+*.npy
+*.jsonl
+*.json
+*.mp4
+*.png
+*.jpg
+*.xlsx
+*.csv
+*.pt
+*.pth
+*.safetensors
+results/
+evidence/
+data/
+saves/
+output/
+*.out
+*.err
+__pycache__/
+*.pyc
+.DS_Store
+docs/CHANGELOG.md
