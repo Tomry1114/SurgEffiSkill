@@ -1,0 +1,46 @@
+{
+ "note": "keys are the dimension names the model emits; paper_names are the formal names used in the paper",
+ "dimensions": [
+  "Depth perception",
+  "Bimanual coordination",
+  "Efficiency",
+  "Tissue handling"
+ ],
+ "paper_names": {
+  "Depth perception": "Depth Perception",
+  "Bimanual coordination": "Bimanual Dexterity",
+  "Efficiency": "Efficiency",
+  "Tissue handling": "Tissue Handling"
+ },
+ "num_levels": 5,
+ "levels": {
+  "Depth perception": {
+   "1": "Unable to judge depth accurately, frequent adjustments of instrument position required. Constantly off target with large movements and slow correction.",
+   "2": "Occasionally able to judge depth but still requires frequent adjustment.",
+   "3": "Sometimes able to judge depth accurately but occasional adjustment needed. Slightly off target but corrects quickly.",
+   "4": "Usually judges depth accurately with minimal adjustment.",
+   "5": "Consistently judges depth accurately with smooth operation. Guides instrument precisely to the target plane."
+  },
+  "Bimanual coordination": {
+   "1": "Very poor coordination, frequent lack of control. Uses one hand and neglects the non-dominant hand with poor coordination.",
+   "2": "Occasionally uses both hands but with noticeable lack of coordination.",
+   "3": "Mostly coordinates both hands but occasionally lacks synchronization. Uses both hands but does not optimize their interaction.",
+   "4": "Almost always coordinates both hands well with minimal lack of synchronization.",
+   "5": "Consistently coordinates both hands smoothly. Skillfully uses both hands to provide optimal exposure."
+  },
+  "Efficiency": {
+   "1": "Very inefficient with frequent wasted time. Uncertain and ineffective efforts with many exploratory movements and shifting focus without progress.",
+   "2": "Sometimes inefficient with occasional wasted time.",
+   "3": "Mostly efficient but occasionally slow. Movements are deliberate and organized.",
+   "4": "Almost always efficient with rare inefficiency.",
+   "5": "Consistently efficient with no wasted time. Confident, effective, safe, and focused on the task."
+  },
+  "Tissue handling": {
+   "1": "Rough tissue handling with frequent damage. Tears tissue, injures nearby structures, and/or several episodes of instrument slippage occurred.",
+   "2": "Occasionally rough tissue handling causing some damage.",
+   "3": "Generally good tissue handling but occasionally rough. Handles tissue appropriately with minor trauma to adjacent tissue.",
+   "4": "Almost always good tissue handling with minimal roughness.",
+   "5": "Consistently gentle and precise tissue handling with no damage. Handles tissue well with minimal injury to surrounding structures."
+  }
+ }
+}

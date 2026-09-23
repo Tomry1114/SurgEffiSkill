@@ -1,69 +1,78 @@
 # SurgEffiSkill
 
-Competency-aware mixture-of-experts for surgical skill assessment from laparoscopic video.
+Surgical skill assessment from laparoscopic video (four competencies, 1-5 ordinal).
 
-Four skill competencies (Depth perception / Bimanual coordination / Efficiency /
-Tissue handling) are rated on a 1–5 ordinal scale. The model routes six heterogeneous
-evidence experts **per competency**, so that fusion capacity is spent only where the
-expert pool actually carries complementary evidence.
-
-## Method
-
-```
-s_d(x) = Σ_m α_{d,m}(x) · ŷ_m(x)
-α_d(x) = softmax( log π_d + β_d(x) · Δ_d(u_d(x)) )
-```
-
-| Component | Definition |
-|---|---|
-| `π_d` | Per-competency global evidence prior; exhaustive simplex search (step 0.1) on **training-fold out-of-fold** predictions, optimising QWK directly |
-| `Δ_d(u)` | Low-rank per-case residual, `tanh(Vu) @ U_d` (V shared 13→rank 2; U_d per-competency 2×6), **zero-initialised** so epoch 0 is bit-identical to the static solution |
-| `β_d(x)` | Trigger gate `σ(a_dᵀu + b_d)` |
-| `u_d(x)` | **13 scalar routing signals** — expert predictions, inter-expert std, max−min, SFT-vs-ridge gap, distances to the four ordinal thresholds |
-| Decoding | Fixed ordinal thresholds `[1.5, 2.5, 3.5, 4.5]`, **no post-hoc calibration** |
-
-Six experts: two ViT streams (28-frame, 4-fps), un-finetuned LLM semantics, SFT-LLM
-semantics, a joint concatenation, and the SFT model's own end-to-end predictions.
-
-**Verifiable fallback property.** On competencies where the pool carries no
-complementary evidence, the gate provably collapses to a single expert (alpha = 1.0)
-and introduces no degradation. On the released split this happens for Depth perception
-and Bimanual coordination; fusion capacity is used only on Efficiency and Tissue
-handling.
-
-## Layout
-
-| Path | Contents |
-|---|---|
-| `surgeffiskill/core/` | The method and its evaluation entry point |
-| `surgeffiskill/pipeline/` | Split construction, feature caching/pooling, SFT inference |
-| `surgeffiskill/ordinal_metrics/` | Ordinal decoding and metrics (QWK, ±1, macro-F1, MAE, rho) |
-| `analysis/` | Scripts reproducing the paper's diagnostics and negative results |
-| `docs/` | Final report and the full research changelog |
-
-## Reproducing
+## Environment
 
 ```bash
-python surgeffiskill/pipeline/make_splits82.py          # 8:2 stratified split
-python surgeffiskill/pipeline/cache_visual_tokens.py    # frozen ViT tokens
-python surgeffiskill/pipeline/cache_llm_tokens.py       # LLM hidden states
-python surgeffiskill/pipeline/pool_llm_feats.py
-python surgeffiskill/pipeline/probe_vision_features.py
-python surgeffiskill/pipeline/concat_feats.py           # -> feats_4src.npz
-python surgeffiskill/core/final_eval.py --arm hot       # final model
+# match torch to your CUDA (this is the tested build)
+pip install torch==2.9.0 --index-url https://download.pytorch.org/whl/cu128
+pip install \
+    transformers==4.57.3 \
+    peft==0.18.0 \
+    accelerate==1.12.0 \
+    numpy==1.26.4 \
+    scipy==1.15.3 \
+    qwen-vl-utils
+# flash-attn is optional; without it attention falls back to sdpa
+# GRPO (stage 2) additionally needs ms-swift:  pip install ms-swift
 ```
 
-All hyper-parameters are selected from training-set cross-validation only. Paths in the
-scripts still point at the authors' cluster layout and need adjusting.
+## Base model
 
-## Data
+Download `Qwen2.5-VL-7B-Instruct` into the repo root (or point `--base` / the `PROJECT`
+path in the scripts at it):
 
-Not included. The surgical videos and their skill annotations are patient data and are
-not redistributable. Derived features, model predictions and per-case result files are
-likewise excluded (see `.gitignore`).
+```bash
+# HuggingFace (prepend HF_ENDPOINT=https://hf-mirror.com if HF is blocked)
+pip install -U "huggingface_hub[cli]"
+huggingface-cli download Qwen/Qwen2.5-VL-7B-Instruct --local-dir Qwen2.5-VL-7B-Instruct
 
-## Notes on the changelog
+# or ModelScope
+pip install -U modelscope
+modelscope download --model Qwen/Qwen2.5-VL-7B-Instruct --local_dir Qwen2.5-VL-7B-Instruct
+```
 
-`docs/CHANGELOG.md` is the unedited research log, including retracted claims, corrected
-analyses and the full set of negative results for competency-adaptive routing. It is
-published as-is for transparency rather than as polished documentation.
+The videos, splits and frozen features are patient data and are not included; the paths in
+`esr.py` and the pipeline scripts point at the authors' cluster and need adjusting.
+
+## Training
+
+All hyper-parameters default to the reported configuration, so training is one command:
+
+```bash
+python surgeffiskill/esr/esr.py --tag esr
+```
+
+SOR is the default ordinal supervision; pass `--no-sor` to use the soft-label-CE + Huber
+term instead.
+
+## GRPO
+
+Stage-2 RL from a LoRA checkpoint, run through ms-swift. The reward has two terms, defined in `surgeffiskill/grpo/reward_plugin.py` and registered via
+`--external_plugins`:
+
+```bash
+swift rlhf --rlhf_type grpo \
+    --model Qwen2.5-VL-7B-Instruct \
+    --adapters <lora_checkpoint> \
+    --train_type lora --target_modules q_proj k_proj v_proj o_proj \
+    --freeze_vit true --freeze_aligner true \
+    --dataset splits82/train_grpo.jsonl \
+    --external_plugins surgeffiskill/grpo/reward_plugin.py \
+    --reward_funcs surg_ordinal surg_format --reward_weights 1.0 0.5 \
+    --num_generations 4 --learning_rate 1e-5 --num_train_epochs 1
+```
+
+`surg_ordinal` decodes the predicted levels and scores their ordinal distance to the
+ground truth (uses `surgeffiskill/surg_rubric.json`); `surg_format` scores answer format.
+
+## Inference
+
+Generation-readout evaluation of a trained LoRA checkpoint, per competency:
+
+```bash
+python surgeffiskill/pipeline/infer_eval_perdim.py \
+    --adapters <lora_checkpoint> --data splits82/val_pd.json \
+    --tag esr --outdir results
+```
