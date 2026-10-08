@@ -442,7 +442,7 @@ def main():
     ap.add_argument('--esr-nopriv', dest='esr_nopriv', action='store_true',
                     help='control: no private write head (shared pool only)')
     ap.add_argument('--no-sor', dest='sor', action='store_false', default=True,
-                    help='by default ESR uses SOR (surgeffiskill/sor/sor.py) for ordinal supervision; --no-sor falls back to the built-in ordinal_loss (soft-label CE + Huber)')
+                    help='by default ESR uses SOR (surgeffiskill/surgmind/sor/sor.py) for ordinal supervision; --no-sor falls back to the built-in ordinal_loss (soft-label CE + Huber)')
     ap.add_argument('--sor-sigma', dest='sor_sigma', type=float, default=1.0,
                     help='SOR discrete-Gaussian width sigma')
     ap.add_argument('--sor-lambda', dest='sor_lambda', type=float, default=0.25,

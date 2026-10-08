@@ -41,7 +41,7 @@ The videos, splits and frozen features are patient data and are not included; th
 All hyper-parameters default to the reported configuration, so training is one command:
 
 ```bash
-python surgeffiskill/esr/esr.py --tag esr
+python surgeffiskill/surgmind/esr/esr.py --tag esr
 ```
 
 SOR is the default ordinal supervision; pass `--no-sor` to use the soft-label-CE + Huber
@@ -49,7 +49,7 @@ term instead.
 
 ## GRPO
 
-Stage-2 RL from a LoRA checkpoint, run through ms-swift. The reward has two terms, defined in `surgeffiskill/grpo/reward_plugin.py` and registered via
+Stage-2 RL from a LoRA checkpoint, run through ms-swift. The reward has two terms, defined in `surgeffiskill/surgmind/grpo/reward_plugin.py` and registered via
 `--external_plugins`:
 
 ```bash
@@ -59,20 +59,20 @@ swift rlhf --rlhf_type grpo \
     --train_type lora --target_modules q_proj k_proj v_proj o_proj \
     --freeze_vit true --freeze_aligner true \
     --dataset splits82/train_grpo.jsonl \
-    --external_plugins surgeffiskill/grpo/reward_plugin.py \
+    --external_plugins surgeffiskill/surgmind/grpo/reward_plugin.py \
     --reward_funcs surg_ordinal surg_format --reward_weights 1.0 0.5 \
     --num_generations 4 --learning_rate 1e-5 --num_train_epochs 1
 ```
 
 `surg_ordinal` decodes the predicted levels and scores their ordinal distance to the
-ground truth (uses `surgeffiskill/surg_rubric.json`); `surg_format` scores answer format.
+ground truth (uses `surgeffiskill/surgmind/surg_rubric.json`); `surg_format` scores answer format.
 
 ## Inference
 
 Generation-readout evaluation of a trained LoRA checkpoint, per competency:
 
 ```bash
-python surgeffiskill/pipeline/infer_eval_perdim.py \
+python surgeffiskill/surgmind/pipeline/infer_eval_perdim.py \
     --adapters <lora_checkpoint> --data splits82/val_pd.json \
     --tag esr --outdir results
 ```
