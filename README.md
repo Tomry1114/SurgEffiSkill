@@ -2,6 +2,9 @@
 
 Surgical skill assessment from laparoscopic video (four competencies, 1-5 ordinal).
 
+The pipeline has two stages: **SurgSight** reduces each raw video to a handful of
+informative keyframes, and **SurgMind** trains and evaluates the skill-assessment model.
+
 ## Environment
 
 ```bash
@@ -15,6 +18,7 @@ pip install \
     scipy==1.15.3 \
     qwen-vl-utils
 # flash-attn is optional; without it attention falls back to sdpa
+# Stage 1 (SurgSight) additionally needs:  pip install opencv-python matplotlib tqdm openai pillow
 # GRPO (stage 2) additionally needs ms-swift:  pip install ms-swift
 ```
 
@@ -36,7 +40,32 @@ modelscope download --model Qwen/Qwen2.5-VL-7B-Instruct --local_dir Qwen2.5-VL-7
 The videos, splits and frozen features are patient data and are not included; the paths in
 `esr.py` and the pipeline scripts point at the authors' cluster and need adjusting.
 
-## Training
+## Stage 1 - SurgSight (keyframe selection)
+
+Three agents turn each raw video into a handful of informative keyframes: `vision_agent`
+scores every sampled frame by DINO semantic change plus optical-flow motion and keeps the
+per-segment peaks; `llm_agent` labels each frame's action / phase / instrument with a
+vision LLM; `fusion_agent` scores frame importance over the whole video and keeps the top-k.
+
+```bash
+export OPENAI_API_KEY=...      # your own key
+export OPENAI_BASE_URL=...     # only if you route through a gateway; leave unset for the official API
+
+# 1) vision: optical flow + DINO -> metadata.json per video
+python surgeffiskill/surgsight/vision_agent.py --input-dir <videos_dir> --out-dir <frames_dir>
+
+# 2) LLM labels -> metadata_with_llm.json
+python surgeffiskill/surgsight/llm_agent.py --root <frames_dir>
+
+# 3) fusion importance -> fusion_selected.json (top-k per video)
+python surgeffiskill/surgsight/fusion_agent.py --a-root <frames_dir> --b-root <target_count_dir>
+```
+
+`vision_agent` defaults to `facebook/dinov2-small`; pass `--model-dir` for a local copy.
+
+## Stage 2 - SurgMind (skill assessment)
+
+### Training
 
 All hyper-parameters default to the reported configuration, so training is one command:
 
@@ -47,10 +76,10 @@ python surgeffiskill/surgmind/esr/esr.py --tag esr
 SOR is the default ordinal supervision; pass `--no-sor` to use the soft-label-CE + Huber
 term instead.
 
-## GRPO
+### GRPO
 
-Stage-2 RL from a LoRA checkpoint, run through ms-swift. The reward has two terms, defined in `surgeffiskill/surgmind/grpo/reward_plugin.py` and registered via
-`--external_plugins`:
+Stage-2 RL from a LoRA checkpoint, run through ms-swift. The reward has two terms, defined
+in `surgeffiskill/surgmind/grpo/reward_plugin.py` and registered via `--external_plugins`:
 
 ```bash
 swift rlhf --rlhf_type grpo \
@@ -64,10 +93,10 @@ swift rlhf --rlhf_type grpo \
     --num_generations 4 --learning_rate 1e-5 --num_train_epochs 1
 ```
 
-`surg_ordinal` decodes the predicted levels and scores their ordinal distance to the
-ground truth (uses `surgeffiskill/surgmind/surg_rubric.json`); `surg_format` scores answer format.
+`surg_ordinal` decodes the predicted levels and scores their ordinal distance to the ground
+truth (uses `surgeffiskill/surgmind/surg_rubric.json`); `surg_format` scores answer format.
 
-## Inference
+### Inference
 
 Generation-readout evaluation of a trained LoRA checkpoint, per competency:
 
